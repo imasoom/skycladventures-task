@@ -11,6 +11,7 @@ interface VoiceButtonProps {
   onError?: (error: string) => void;
   className?: string;
   continuousMode?: boolean;
+  forceStop?: boolean;
 }
 
 export type RecordingState = 'idle' | 'listening' | 'processing';
@@ -21,7 +22,8 @@ export const VoiceButton: React.FC<VoiceButtonProps> = ({
   onTranscriptChange,
   onError,
   className,
-  continuousMode = false
+  continuousMode = false,
+  forceStop = false
 }) => {
   const {
     transcript,
@@ -70,13 +72,14 @@ export const VoiceButton: React.FC<VoiceButtonProps> = ({
     }
   }, [isListening, onRecordingStart]); // Removed recordingState to prevent multiple calls
 
-  // Handle auto-submit after silence (when recognition stops)
+  // Handle auto-submit after silence or stop command (when recognition stops)
   useEffect(() => {
     if (!isListening && finalTranscript.trim()) {
+      console.log('Auto-submitting transcript:', finalTranscript.trim());
       onRecordingStop?.(finalTranscript.trim());
-      resetTranscript();
+      // Don't reset transcript here - let the hook handle it
     }
-  }, [isListening, finalTranscript, onRecordingStop, resetTranscript]);
+  }, [isListening, finalTranscript, onRecordingStop]);
 
   // Handle errors
   useEffect(() => {
@@ -84,6 +87,13 @@ export const VoiceButton: React.FC<VoiceButtonProps> = ({
       onError?.(error);
     }
   }, [error, onError]);
+
+  // Handle force stop
+  useEffect(() => {
+    if (forceStop && isListening) {
+      stopListening();
+    }
+  }, [forceStop, isListening, stopListening]);
 
   const handleClick = () => {
     if (!isSupported) {
@@ -135,11 +145,11 @@ export const VoiceButton: React.FC<VoiceButtonProps> = ({
   const getTooltipText = () => {
     if (!isSupported) return 'Speech recognition not supported in this browser';
     if (error) return error;
-    if (continuousMode && isListening) return 'Listening continuously - use Stop Recording to end';
+    if (continuousMode && isListening) return 'Listening - say "stop" to submit your message';
     switch (recordingState) {
       case 'listening': return 'Click to stop recording';
       case 'processing': return 'Processing speech...';
-      default: return continuousMode ? 'Start continuous listening' : 'Click to start voice recording';
+      default: return continuousMode ? 'Start listening - say "stop" to submit' : 'Click to start voice recording';
     }
   };
 

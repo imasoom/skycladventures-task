@@ -17,6 +17,7 @@ const Index = () => {
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [isListeningContinuously, setIsListeningContinuously] = useState(false);
+  const [forceStopListening, setForceStopListening] = useState(false);
   const conversationRef = useRef<ConversationAreaRef>(null);
   const cameraRef = useRef<HTMLVideoElement>(null);
   
@@ -35,7 +36,6 @@ const Index = () => {
     setIsRecording(true);
     setCurrentTranscript('');
     setSpeechError(null);
-    console.log('Speech recognition started');
     
     // Start session recording if not already started
     if (!sessionStarted && cameraStream) {
@@ -44,7 +44,6 @@ const Index = () => {
   };
 
   const handleStartListening = () => {
-    console.log('Starting continuous listening...');
     if (!isListeningContinuously) { // Only set if not already listening
       setIsListeningContinuously(true);
       setCurrentTranscript('');
@@ -59,41 +58,28 @@ const Index = () => {
 
   const handleRecordingStop = (transcript: string) => {
     setIsRecording(false);
-    setCurrentTranscript('');
-    setIsInterimTranscript(false);
     
-    console.log('Speech recognition stopped. Final transcript:', transcript);
-    
-    // Add the transcript as a user message to the conversation
+    // Simple: just submit the transcript
     if (transcript.trim()) {
       conversationRef.current?.addUserMessage(transcript.trim());
+      setIsListeningContinuously(false);
+      
+      // Clear display
+      setTimeout(() => {
+        setCurrentTranscript('');
+        setIsInterimTranscript(false);
+      }, 500);
     }
   };
 
   const handleTranscriptChange = (transcript: string, isInterim: boolean) => {
-    console.log('Index handleTranscriptChange:', { transcript, isInterim, length: transcript.length });
-    console.log('Setting currentTranscript to:', transcript);
-    
-    // Use functional updates to avoid stale closure issues
-    setCurrentTranscript(prev => {
-      console.log('Updating currentTranscript from:', prev, 'to:', transcript);
-      return transcript;
-    });
-    setIsInterimTranscript(prev => {
-      console.log('Updating isInterimTranscript from:', prev, 'to:', isInterim);
-      return isInterim;
-    });
+    setCurrentTranscript(transcript);
+    setIsInterimTranscript(isInterim);
   };
-
-  // Debug: Watch for state changes
-  useEffect(() => {
-    console.log('🔄 State changed - currentTranscript:', currentTranscript, 'isInterim:', isInterimTranscript);
-  }, [currentTranscript, isInterimTranscript]);
 
   const handleSpeechError = (error: string) => {
     setSpeechError(error);
     setIsRecording(false);
-    console.error('Speech recognition error:', error);
   };
 
   const handleSessionStart = async () => {
@@ -101,7 +87,6 @@ const Index = () => {
       try {
         await startRecording(cameraStream);
         setSessionStarted(true);
-        console.log('Session recording started');
       } catch (error) {
         console.error('Failed to start session recording:', error);
       }
@@ -109,13 +94,20 @@ const Index = () => {
   };
 
   const handleSessionStop = () => {
+    // Simple: submit current transcript and stop everything
+    if (currentTranscript.trim()) {
+      conversationRef.current?.addUserMessage(currentTranscript.trim());
+    }
+    
+    setIsListeningContinuously(false);
+    setCurrentTranscript('');
+    setIsInterimTranscript(false);
+    
+    // Stop recording
     if (sessionStarted) {
       stopRecording();
       setSessionStarted(false);
-      setIsListeningContinuously(false);
-      console.log('Session recording stopped');
       
-      // Stop camera stream
       if (cameraStream) {
         cameraStream.getTracks().forEach(track => track.stop());
         setCameraStream(null);
@@ -176,7 +168,7 @@ const Index = () => {
   }, [sessionStarted, stopRecording]);
 
   return (
-    <div className="min-h-screen bg-background relative overflow-hidden">
+    <div className="min-h-screen bg-background relative overflow-hidden flex flex-col">
       {/* Background */}
       <div 
         className="absolute inset-0 opacity-30"
@@ -218,8 +210,8 @@ const Index = () => {
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 container mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 h-[calc(100vh-200px)]">
+      <main className="relative z-10 container mx-auto px-6 py-8 flex-1 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 h-full">
           {/* Left Panel - Camera View */}
           <div className="lg:col-span-3 flex flex-col">
             <div className="flex-1 flex items-center justify-center p-4">
@@ -235,8 +227,8 @@ const Index = () => {
                 <h2 className="text-xl font-semibold mb-2">Voice Interaction</h2>
                 <p className="text-muted-foreground text-sm">
                   {!isListeningContinuously 
-                    ? "Start listening for continuous voice interaction"
-                    : "Speaking continuously - auto-submits after 2s of silence"
+                    ? "Start listening - say 'stop' to submit your message"
+                    : "Listening - say 'stop' to submit your message"
                   }
                 </p>
               </div>
@@ -250,16 +242,16 @@ const Index = () => {
               )}
 
               {/* Control Buttons */}
-              <div className="flex gap-4">
+              <div className="flex gap-4 justify-center">
                 <VoiceButton
                   onRecordingStart={handleStartListening}
                   onRecordingStop={handleRecordingStop}
                   onTranscriptChange={handleTranscriptChange}
                   onError={handleSpeechError}
-                  className="shadow-glow"
+                  className={`shadow-glow ${isListeningContinuously ? 'hidden' : ''}`}
                   continuousMode={true}
+                  forceStop={forceStopListening}
                 />
-                
                 {isListeningContinuously && (
                   <Button
                     variant="destructive"
@@ -279,24 +271,18 @@ const Index = () => {
                     {isRecording ? 'Listening...' : 'Ready to listen'}
                   </p>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Speak naturally - your words will appear below and auto-submit after 2s of silence
+                    Speak naturally - your words will appear below. Say "stop" to submit your message.
                   </p>
                   
                   <div className="glass-card p-4 rounded-lg border border-accent/20 min-h-[100px]">
                     <p className="text-sm text-muted-foreground mb-2">Live Transcription:</p>
-                    <div className="border border-red-200 p-2 mb-2 text-xs">
-                      DEBUG: currentTranscript="{currentTranscript}" (length: {currentTranscript.length}), isInterim: {isInterimTranscript.toString()}
-                    </div>
                     {currentTranscript ? (
                       <p className={`text-sm ${isInterimTranscript ? 'text-accent/70 italic' : 'text-foreground font-medium'}`}>
-                        "{currentTranscript}" 
-                        <span className="text-xs text-muted-foreground ml-2">
-                          ({currentTranscript.length} chars, {isInterimTranscript ? 'interim' : 'final'})
-                        </span>
+                        "{currentTranscript}"
                       </p>
                     ) : (
                       <p className="text-sm text-muted-foreground italic">
-                        Start speaking to see your words appear here... (waiting for transcript)
+                        Start speaking to see your words appear here...
                       </p>
                     )}
                   </div>
@@ -306,10 +292,10 @@ const Index = () => {
           </div>
 
           {/* Right Panel - Conversation Area */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 flex flex-col min-h-0">
             <ConversationArea 
               ref={conversationRef} 
-              className="h-full" 
+              className="h-full flex-1" 
               onDownloadSession={handleDownloadSession}
               sessionRecording={isSessionRecording || isListeningContinuously}
               sessionDuration={duration}

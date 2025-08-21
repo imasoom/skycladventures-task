@@ -47,10 +47,11 @@ export const ConversationArea = forwardRef<ConversationAreaRef, ConversationArea
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     if (scrollAreaRef.current) {
-      const scrollElement = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollElement) {
-        scrollElement.scrollTop = scrollElement.scrollHeight;
-      }
+      const scrollElement = scrollAreaRef.current;
+      scrollElement.scrollTo({
+        top: scrollElement.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, [messages]);
 
@@ -212,14 +213,12 @@ export const ConversationArea = forwardRef<ConversationAreaRef, ConversationArea
       </div>
 
       {/* Messages */}
-      <div className="flex-1 glass-card rounded-2xl p-4">
-        <ScrollArea className="h-full" ref={scrollAreaRef}>
-          <div className="pr-4">
-            {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
-            ))}
-          </div>
-        </ScrollArea>
+      <div className="flex-1 glass-card rounded-2xl p-4 flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-accent/20 scrollbar-track-transparent" ref={scrollAreaRef}>
+          {messages.map((message) => (
+            <MessageBubble key={message.id} message={message} />
+          ))}
+        </div>
       </div>
 
       {/* Controls */}

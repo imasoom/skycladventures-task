@@ -77,6 +77,22 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
             }
           }
 
+          // Simple stop command detection
+          const fullTranscript = (finalTranscript + newFinalTranscript + newInterimTranscript).toLowerCase();
+          const hasStopCommand = fullTranscript.includes('stop');
+          
+          if (hasStopCommand && continuousModeRef.current) {
+            console.log('Stop command detected');
+            // Clean transcript and stop
+            const originalTranscript = finalTranscript + newFinalTranscript + newInterimTranscript;
+            const cleanedTranscript = originalTranscript.replace(/stop/gi, '').trim();
+            
+            setFinalTranscript(cleanedTranscript);
+            continuousModeRef.current = false;
+            recognition.stop();
+            return;
+          }
+
           setInterimTranscript(newInterimTranscript);
           
           // Update final transcript if we have new final results
@@ -105,6 +121,7 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
             }
             timeoutRef.current = setTimeout(() => {
               if (isListening && recognition) {
+                console.log('2s silence timeout - stopping recognition for auto-submit');
                 recognition.stop();
               }
             }, 2000); // Auto-submit after 2 seconds of silence
@@ -155,11 +172,16 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
           }
           
           // Auto-restart if in continuous mode and not manually stopped
+          // But only restart after finalTranscript has been processed
           if (continuousModeRef.current && !isManualStopRef.current) {
+            // Give a moment for finalTranscript processing, then restart
             setTimeout(() => {
               try {
                 if (recognitionRef.current && !isListening && continuousModeRef.current) {
-                  console.log('Auto-restarting speech recognition...');
+                  console.log('Auto-restarting speech recognition after processing...');
+                  // Reset transcript state for next session
+                  setFinalTranscript('');
+                  setTranscript('');
                   recognitionRef.current.start();
                 }
               } catch (restartError) {
@@ -167,7 +189,7 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
                 // Stop continuous mode if restart keeps failing
                 continuousModeRef.current = false;
               }
-            }, 300);
+            }, 1000); // Longer delay to ensure processing happens
           }
           
           // Reset manual stop flag
