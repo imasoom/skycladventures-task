@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { Bot, User, Loader2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -14,9 +14,21 @@ interface Message {
 
 interface ConversationAreaProps {
   className?: string;
+  onDownloadSession?: () => void;
+  sessionRecording?: boolean;
+  sessionDuration?: number;
 }
 
-export const ConversationArea: React.FC<ConversationAreaProps> = ({ className }) => {
+export interface ConversationAreaRef {
+  addUserMessage: (content: string) => void;
+}
+
+export const ConversationArea = forwardRef<ConversationAreaRef, ConversationAreaProps>(({ 
+  className, 
+  onDownloadSession, 
+  sessionRecording = false, 
+  sessionDuration = 0 
+}, ref) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -103,9 +115,31 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({ className })
     }, 500);
   };
 
+  // Expose addUserMessage function through ref
+  useImperativeHandle(ref, () => ({
+    addUserMessage
+  }));
+
   const handleDownload = () => {
-    // Simulate download functionality
-    console.log('Downloading conversation transcript...');
+    if (onDownloadSession) {
+      onDownloadSession();
+    } else {
+      // Fallback: download conversation transcript
+      const transcript = messages
+        .filter(msg => !msg.isTyping)
+        .map(msg => `${msg.type.toUpperCase()}: ${msg.content}`)
+        .join('\n\n');
+      
+      const blob = new Blob([transcript], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `conversation-transcript-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   };
 
   const MessageBubble: React.FC<{ message: Message }> = ({ message }) => (
@@ -165,11 +199,14 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({ className })
       <div className="glass-card p-4 mb-4 rounded-2xl">
         <h2 className="text-lg font-semibold mb-2">Conversation</h2>
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Duration: {sessionStats.duration}</span>
+          <span>Duration: {sessionDuration ? `${Math.floor(sessionDuration / 60).toString().padStart(2, '0')}:${(sessionDuration % 60).toFixed(0).padStart(2, '0')}` : sessionStats.duration}</span>
           <span>Questions: {sessionStats.questionsAsked}</span>
           <span className="flex items-center gap-1">
-            <div className="w-2 h-2 bg-success rounded-full" />
-            {sessionStats.connectionQuality}
+            <div className={cn(
+              "w-2 h-2 rounded-full",
+              sessionRecording ? "bg-destructive animate-pulse" : "bg-success"
+            )} />
+            {sessionRecording ? "Recording" : sessionStats.connectionQuality}
           </span>
         </div>
       </div>
@@ -194,7 +231,7 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({ className })
           className="glass border-accent/30 hover:border-accent/50"
         >
           <Download className="w-4 h-4 mr-2" />
-          Download
+          {onDownloadSession ? "Download Recording" : "Download Transcript"}
         </Button>
         
         <div className="flex-1" />
@@ -210,4 +247,6 @@ export const ConversationArea: React.FC<ConversationAreaProps> = ({ className })
       </div>
     </div>
   );
-};
+});
+
+ConversationArea.displayName = 'ConversationArea';

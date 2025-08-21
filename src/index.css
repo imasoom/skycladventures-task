@@ -223,3 +223,18 @@
     transform: translateY(0);
   }
 }
+
+/* Video rendering fixes */
+@layer utilities {
+  .glass-card video {
+    position: relative;
+    z-index: 1;
+    background-color: #000;
+  }
+  
+  video {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+}
