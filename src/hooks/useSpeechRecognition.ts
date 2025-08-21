@@ -40,6 +40,8 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
   const recognitionRef = useRef<any>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const endResolveRef = useRef<(() => void) | null>(null);
+  const continuousModeRef = useRef<boolean>(false);
+  const isManualStopRef = useRef<boolean>(false);
 
   // Check for browser support
   useEffect(() => {
@@ -76,30 +78,50 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
           }
 
           setInterimTranscript(newInterimTranscript);
+          
+          // Update final transcript if we have new final results
           if (newFinalTranscript) {
             setFinalTranscript(prev => prev + newFinalTranscript);
-            setTranscript(prev => prev + newFinalTranscript);
           }
           
-          // Update combined transcript
-          const combinedTranscript = (finalTranscript + newFinalTranscript + newInterimTranscript).trim();
-          setTranscript(combinedTranscript);
+          // Update combined transcript for live display
+          setTranscript(prevTranscript => {
+            const updatedFinal = finalTranscript + newFinalTranscript;
+            const combined = updatedFinal + newInterimTranscript;
+            console.log('Transcript update:', { 
+              prevTranscript, 
+              finalTranscript, 
+              newFinalTranscript, 
+              newInterimTranscript, 
+              combined 
+            });
+            return combined;
+          });
           
-          // Reset timeout for auto-submit (2s of silence)
-          if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-          }
-          timeoutRef.current = setTimeout(() => {
-            if (isListening) {
-              recognition.stop();
+          // Reset timeout for auto-submit (2s of silence) - only in continuous mode
+          if (continuousModeRef.current) {
+            if (timeoutRef.current) {
+              clearTimeout(timeoutRef.current);
             }
-          }, 2000); // Auto-submit after 2 seconds of silence
+            timeoutRef.current = setTimeout(() => {
+              if (isListening && recognition) {
+                recognition.stop();
+              }
+            }, 2000); // Auto-submit after 2 seconds of silence
+          }
         };
 
         recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
           console.error('Speech recognition error:', event.error);
-          setError(`Speech recognition error: ${event.error}`);
           setIsListening(false);
+          
+          // Don't restart on aborted errors (they happen during normal stop/start cycles)
+          if (event.error === 'aborted') {
+            return; // Don't set error state for aborted, it's normal
+          }
+          
+          // Stop continuous mode on real errors
+          continuousModeRef.current = false;
           
           // Handle specific error cases
           switch (event.error) {
@@ -133,17 +155,23 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
           }
           
           // Auto-restart if in continuous mode and not manually stopped
-          if (recognition.continuous && !error) {
+          if (continuousModeRef.current && !isManualStopRef.current) {
             setTimeout(() => {
-              if (!isListening) {
-                try {
-                  recognition.start();
-                } catch (restartError) {
-                  console.log('Auto-restart failed, stopping continuous mode');
+              try {
+                if (recognitionRef.current && !isListening && continuousModeRef.current) {
+                  console.log('Auto-restarting speech recognition...');
+                  recognitionRef.current.start();
                 }
+              } catch (restartError) {
+                console.log('Auto-restart failed:', restartError);
+                // Stop continuous mode if restart keeps failing
+                continuousModeRef.current = false;
               }
-            }, 100);
+            }, 300);
           }
+          
+          // Reset manual stop flag
+          isManualStopRef.current = false;
           
           // Allow any awaiters to continue
           endResolveRef.current?.();
@@ -182,17 +210,15 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
       try {
         setError(null);
         setInterimTranscript('');
+        isManualStopRef.current = false;
+        continuousModeRef.current = continuous;
         
-        // Configure for continuous or single-shot mode
-        if (continuous) {
-          recognitionRef.current.continuous = true;
-          recognitionRef.current.interimResults = true;
-        } else {
-          recognitionRef.current.continuous = false;
-          recognitionRef.current.interimResults = true;
-        }
+        // Configure recognition
+        recognitionRef.current.continuous = continuous;
+        recognitionRef.current.interimResults = true;
         
         recognitionRef.current.start();
+        console.log('Starting speech recognition, continuous:', continuous);
       } catch (startError) {
         console.error('Failed to start speech recognition:', startError);
         setError('Failed to start speech recognition. Please try again.');
@@ -201,6 +227,9 @@ export const useSpeechRecognition = (): UseSpeechRecognitionReturn => {
   }, [isSupported, isListening]);
 
   const stopListening = useCallback(() => {
+    isManualStopRef.current = true;
+    continuousModeRef.current = false;
+    
     if (recognitionRef.current && isListening) {
       recognitionRef.current.stop();
     }

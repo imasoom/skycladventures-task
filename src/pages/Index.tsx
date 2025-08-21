@@ -44,13 +44,16 @@ const Index = () => {
   };
 
   const handleStartListening = () => {
-    setIsListeningContinuously(true);
-    setCurrentTranscript('');
-    setSpeechError(null);
-    
-    // Start session recording if not already started
-    if (!sessionStarted && cameraStream) {
-      handleSessionStart();
+    console.log('Starting continuous listening...');
+    if (!isListeningContinuously) { // Only set if not already listening
+      setIsListeningContinuously(true);
+      setCurrentTranscript('');
+      setSpeechError(null);
+      
+      // Start session recording if not already started
+      if (!sessionStarted && cameraStream) {
+        handleSessionStart();
+      }
     }
   };
 
@@ -68,9 +71,24 @@ const Index = () => {
   };
 
   const handleTranscriptChange = (transcript: string, isInterim: boolean) => {
-    setCurrentTranscript(transcript);
-    setIsInterimTranscript(isInterim);
+    console.log('Index handleTranscriptChange:', { transcript, isInterim, length: transcript.length });
+    console.log('Setting currentTranscript to:', transcript);
+    
+    // Use functional updates to avoid stale closure issues
+    setCurrentTranscript(prev => {
+      console.log('Updating currentTranscript from:', prev, 'to:', transcript);
+      return transcript;
+    });
+    setIsInterimTranscript(prev => {
+      console.log('Updating isInterimTranscript from:', prev, 'to:', isInterim);
+      return isInterim;
+    });
   };
+
+  // Debug: Watch for state changes
+  useEffect(() => {
+    console.log('🔄 State changed - currentTranscript:', currentTranscript, 'isInterim:', isInterimTranscript);
+  }, [currentTranscript, isInterimTranscript]);
 
   const handleSpeechError = (error: string) => {
     setSpeechError(error);
@@ -233,16 +251,16 @@ const Index = () => {
 
               {/* Control Buttons */}
               <div className="flex gap-4">
-                {!isListeningContinuously ? (
-                  <VoiceButton
-                    onRecordingStart={handleStartListening}
-                    onRecordingStop={handleRecordingStop}
-                    onTranscriptChange={handleTranscriptChange}
-                    onError={handleSpeechError}
-                    className="shadow-glow"
-                    continuousMode={true}
-                  />
-                ) : (
+                <VoiceButton
+                  onRecordingStart={handleStartListening}
+                  onRecordingStop={handleRecordingStop}
+                  onTranscriptChange={handleTranscriptChange}
+                  onError={handleSpeechError}
+                  className="shadow-glow"
+                  continuousMode={true}
+                />
+                
+                {isListeningContinuously && (
                   <Button
                     variant="destructive"
                     size="voice"
@@ -266,13 +284,19 @@ const Index = () => {
                   
                   <div className="glass-card p-4 rounded-lg border border-accent/20 min-h-[100px]">
                     <p className="text-sm text-muted-foreground mb-2">Live Transcription:</p>
+                    <div className="border border-red-200 p-2 mb-2 text-xs">
+                      DEBUG: currentTranscript="{currentTranscript}" (length: {currentTranscript.length}), isInterim: {isInterimTranscript.toString()}
+                    </div>
                     {currentTranscript ? (
                       <p className={`text-sm ${isInterimTranscript ? 'text-accent/70 italic' : 'text-foreground font-medium'}`}>
-                        "{currentTranscript}"
+                        "{currentTranscript}" 
+                        <span className="text-xs text-muted-foreground ml-2">
+                          ({currentTranscript.length} chars, {isInterimTranscript ? 'interim' : 'final'})
+                        </span>
                       </p>
                     ) : (
                       <p className="text-sm text-muted-foreground italic">
-                        Start speaking to see your words appear here...
+                        Start speaking to see your words appear here... (waiting for transcript)
                       </p>
                     )}
                   </div>

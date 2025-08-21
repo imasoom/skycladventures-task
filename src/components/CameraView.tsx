@@ -93,7 +93,7 @@ export const CameraView: React.FC<CameraViewProps> = ({
         autoPlay
         muted
         playsInline
-        webkit-playsinline
+        webkit-playsinline="true"
         className="w-full h-full object-cover bg-black"
         style={{ transform: 'scaleX(-1)' }}
         onLoadStart={() => console.log('Video loading started')}

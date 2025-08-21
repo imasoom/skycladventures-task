@@ -50,18 +50,25 @@ export const VoiceButton: React.FC<VoiceButtonProps> = ({
 
   // Handle transcript changes - show live transcription
   useEffect(() => {
-    const currentTranscript = finalTranscript + interimTranscript;
-    if (currentTranscript) {
-      onTranscriptChange?.(currentTranscript, !!interimTranscript);
-    }
-  }, [interimTranscript, finalTranscript, onTranscriptChange]);
+    // Use transcript (which contains final + interim) or fallback to just interim
+    const currentTranscript = transcript || interimTranscript;
+    console.log('VoiceButton transcript update:', { 
+      transcript, 
+      interimTranscript, 
+      finalTranscript, 
+      currentTranscript,
+      isInterim: !!interimTranscript 
+    });
+    onTranscriptChange?.(currentTranscript, !!interimTranscript);
+  }, [transcript, interimTranscript, finalTranscript, onTranscriptChange]);
 
-  // Handle recording start callback
+  // Handle recording start callback - only call once when starting
   useEffect(() => {
     if (isListening && recordingState === 'listening') {
+      console.log('VoiceButton calling onRecordingStart');
       onRecordingStart?.();
     }
-  }, [isListening, recordingState, onRecordingStart]);
+  }, [isListening, onRecordingStart]); // Removed recordingState to prevent multiple calls
 
   // Handle auto-submit after silence (when recognition stops)
   useEffect(() => {
@@ -94,6 +101,7 @@ export const VoiceButton: React.FC<VoiceButtonProps> = ({
 
   const getButtonVariant = () => {
     if (!isSupported || error) return 'destructive';
+    if (continuousMode && isListening) return 'voice'; // Keep normal appearance in continuous mode
     switch (recordingState) {
       case 'listening': return 'recording';
       case 'processing': return 'processing';
@@ -107,7 +115,7 @@ export const VoiceButton: React.FC<VoiceButtonProps> = ({
     }
     switch (recordingState) {
       case 'listening':
-        return <Square className="w-6 h-6" />;
+        return continuousMode ? <Mic className="w-6 h-6" /> : <Square className="w-6 h-6" />;
       case 'processing':
         return <Loader2 className="w-6 h-6 animate-spin" />;
       default:
@@ -127,10 +135,11 @@ export const VoiceButton: React.FC<VoiceButtonProps> = ({
   const getTooltipText = () => {
     if (!isSupported) return 'Speech recognition not supported in this browser';
     if (error) return error;
+    if (continuousMode && isListening) return 'Listening continuously - use Stop Recording to end';
     switch (recordingState) {
       case 'listening': return 'Click to stop recording';
       case 'processing': return 'Processing speech...';
-      default: return 'Click to start voice recording';
+      default: return continuousMode ? 'Start continuous listening' : 'Click to start voice recording';
     }
   };
 
@@ -139,10 +148,11 @@ export const VoiceButton: React.FC<VoiceButtonProps> = ({
       variant={getButtonVariant()}
       size="voice"
       onClick={handleClick}
-      disabled={recordingState === 'processing' || (!isSupported && recordingState === 'idle')}
+      disabled={recordingState === 'processing' || (!isSupported && recordingState === 'idle') || (continuousMode && isListening)}
       className={cn(
         'transition-all duration-300',
         getAnimationClass(),
+        continuousMode && isListening && 'opacity-50',
         className
       )}
       title={getTooltipText()}
