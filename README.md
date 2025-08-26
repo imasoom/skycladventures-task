@@ -148,7 +148,7 @@ Default recording configuration:
 
 ## 🎥 Demo
 
-https://user-images.githubusercontent.com/demo.mp4
+![Demo Video](./demo.mp4)
 
 *Complete demonstration featuring:*
 - Voice input functionality
