@@ -148,7 +148,9 @@ Default recording configuration:
 
 ## 🎥 Demo
 
-See `demo.mkv` for a complete demonstration of:
+https://user-images.githubusercontent.com/demo.mp4
+
+*Complete demonstration featuring:*
 - Voice input functionality
 - Real-time transcription
 - Camera feed operation
@@ -189,6 +191,4 @@ This project successfully implements all required features from the Full Stack E
 
 ---
 
-**Developed by**: [Your Name]  
-**Contact**: [Your Email]  
-**Demo Video**: `demo.mkv`
+
