@@ -7,6 +7,7 @@ import { StatusIndicator } from '@/components/StatusIndicator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useMediaRecorder } from '@/hooks/useMediaRecorder';
+import { useSpeechRecognition } from '@/hooks/useSpeechRecognition';
 import aiTechBackground from '@/assets/ai-tech-background.jpg';
 
 const Index = () => {
@@ -31,6 +32,8 @@ const Index = () => {
     downloadRecording,
     clearRecording
   } = useMediaRecorder();
+
+  const { isSupported: speechRecognitionSupported } = useSpeechRecognition();
 
   const handleRecordingStart = () => {
     setIsRecording(true);
@@ -208,6 +211,20 @@ const Index = () => {
           </div>
         </div>
       </header>
+
+      {/* Browser Compatibility Warning */}
+      {!speechRecognitionSupported && (
+        <div className="relative z-10 container mx-auto px-6 py-4">
+          <Alert className="border-destructive/50 text-destructive bg-destructive/10">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Speech recognition is not supported in this browser.</strong><br />
+              For voice interaction features, please use <strong>Chrome, Safari, or Edge</strong>. 
+              Firefox and some other browsers don't support browser-based speech recognition.
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Main Content */}
       <main className="relative z-10 container mx-auto px-6 py-8 flex-1 overflow-hidden">
